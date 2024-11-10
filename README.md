@@ -52,3 +52,4 @@ If you have any questions or feedback, feel free to reach out via the "Issues" s
 ![counter alıcı](https://github.com/user-attachments/assets/fb31c46f-9fa1-42b9-af26-cf11c5c7b88a)
 ![lora alici dtandby](https://github.com/user-attachments/assets/c5498736-fccb-48d1-a0c5-a271d1d96fab)
 ![lora almış](https://github.com/user-attachments/assets/8ea09bf7-b7db-4bd7-bf1c-511b9618e297)
+![RSSI alıcı](https://github.com/user-attachments/assets/db286f2e-26cd-44fa-962b-1b503ecd4120)
