@@ -1,4 +1,4 @@
-//alıcı için alınan mesaj counter eklendi ve yeni gelen mesajlar ekranda kayarak yazdırılıyor. Biraz daha yakışıklı oldu :)
+//alıcı için alınan mesaj counter eklendi,RSSI ve yeni gelen mesajlar ekranda kayarak yazdırılıyor. Biraz daha yakışıklı oldu :)
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -66,24 +66,33 @@ void loop() {
       incoming += (char)LoRa.read();
     }
 
-    // Display message on serial port and OLED screen
+    // Get RSSI of the received packet
+    int rssi = LoRa.packetRssi();
+
+    // Display message on serial port
     Serial.print("MSG: ");
     Serial.println(incoming);
+    Serial.print("RSSI: ");
+    Serial.println(rssi);
 
     // Update OLED display
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, 0);
-    display.printf("LoRa Rcvr Msg:%d", messageCount);
+    display.printf("LoRa Rcvr Msg: %d", messageCount);
 
-    // Display messages starting from the second line
+    // Display RSSI on the second line
     display.setCursor(0, 10);
+    display.printf("RSSI: %d dBm", rssi);
+
+    // Display messages starting from the third line
+    display.setCursor(0, 20);
 
     static String allMessages = "";
     allMessages += incoming + "\n";
 
     // Ensure messages do not exceed display capacity
-    int maxLines = SCREEN_HEIGHT / 8 - 1; // Height of one line is 8 pixels; first line is reserved
+    int maxLines = SCREEN_HEIGHT / 8 - 2; // Height of one line is 8 pixels; first two lines are reserved
     int lineCount = 0;
 
     for (int i = allMessages.length() - 1; i >= 0 && lineCount < maxLines; --i) {
