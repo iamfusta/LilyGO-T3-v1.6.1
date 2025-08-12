@@ -1,0 +1,258 @@
+/*
+ * Lilygo T3 V1.6.1 SD Card & OLED Test Sketch with Speed Test
+ *
+ * This sketch now includes a speed test function to measure the read/write
+ * performance of the SD card. After the initial tests, it enters a loop
+ * to display speed results and general stats on two alternating pages
+ * with a blinking frame effect.
+ *
+ * SD Card Pinout for T3 V1.6.1:
+ * - SCK:  GPIO 14
+ * - MISO: GPIO 2
+ * - MOSI: GPIO 15
+ * - CS:   GPIO 13
+ *
+ * OLED Pinout (I2C):
+ * - SDA:  GPIO 21
+ * - SCL:  GPIO 22
+ *
+ * The code will:
+ * 1. Initialize the OLED display and the SD card.
+ * 2. Perform write and read speed tests, storing the results.
+ * 3. Clean up the test file.
+ * 4. Enter a loop to display stats on the OLED with a blinking frame,
+ * switching pages every 5 seconds.
+ */
+
+#include <SPI.h>
+#include <SD.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Display Settings
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_SDA 21
+#define OLED_SCL 22
+#define OLED_RESET -1
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// SD Card Settings
+SPIClass sdSPI(HSPI);
+#define SD_CS 13
+#define SD_SCK 14
+#define SD_MISO 2
+#define SD_MOSI 15
+
+// Speed Test Settings
+#define TEST_FILE "/speedtest.dat"
+#define FILE_SIZE_MB 1
+#define BUFFER_SIZE 1024 // 1KB buffer
+
+// Global variables to store test results
+float writeSpeed = 0.0;
+float readSpeed = 0.0;
+
+// Helper function to print a message to the OLED and wait
+void oledPrint(const String& text, int delay_ms = 1500) {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println(text);
+  display.display();
+  delay(delay_ms);
+}
+
+// Function to perform the write speed test
+void performWriteTest() {
+  byte buffer[BUFFER_SIZE];
+  for (int i = 0; i < BUFFER_SIZE; i++) {
+    buffer[i] = i % 256;
+  }
+
+  oledPrint("Hiz Testi:\nYazma...");
+
+  File file = SD.open(TEST_FILE, FILE_WRITE);
+  if (!file) {
+    oledPrint("HATA:\nTest dosyasi\nolusturulamadi!");
+    return;
+  }
+
+  long startTime = millis();
+  for (int i = 0; i < (1024 * FILE_SIZE_MB); i++) {
+    size_t bytesWritten = file.write(buffer, BUFFER_SIZE);
+    if (bytesWritten != BUFFER_SIZE) {
+        oledPrint("HATA:\nYazma hatasi!");
+        file.close();
+        return;
+    }
+  }
+  file.close();
+  long endTime = millis();
+
+  long duration = endTime - startTime;
+  // Calculate and store speed in KB/s
+  writeSpeed = (float)(1024 * FILE_SIZE_MB) / (duration / 1000.0);
+}
+
+// Function to perform the read speed test
+void performReadTest() {
+  byte buffer[BUFFER_SIZE];
+  oledPrint("Hiz Testi:\nOkuma...");
+
+  File file = SD.open(TEST_FILE);
+  if (!file) {
+    oledPrint("HATA:\nTest dosyasi\nacilamadi!");
+    return;
+  }
+
+  long startTime = millis();
+  while (file.available()) {
+    file.read(buffer, BUFFER_SIZE);
+  }
+  file.close();
+  long endTime = millis();
+
+  long duration = endTime - startTime;
+  // Calculate and store speed in KB/s
+  readSpeed = (float)(1024 * FILE_SIZE_MB) / (duration / 1000.0);
+}
+
+
+// Prepares the speed statistics page in the display buffer
+void prepareSpeedStatsPage() {
+  display.clearDisplay();
+  // Set cursor inside the frame area
+  display.setCursor(2, 2);
+  display.println("--- Hiz Testi ---");
+  display.setCursor(2, display.getCursorY()); // Re-align X for next line
+  display.print("Yazma: ");
+  display.print(writeSpeed, 2);
+  display.println(" KB/s");
+  
+  display.setCursor(2, display.getCursorY()); // Re-align X for next line
+  display.print("Okuma: ");
+  display.print(readSpeed, 2);
+  display.println(" KB/s");
+}
+
+// Prepares the general statistics page in the display buffer
+void prepareGeneralStatsPage() {
+  uint64_t totalBytes = SD.cardSize();
+  uint64_t usedBytes = SD.usedBytes();
+
+  String cardTypeStr;
+  uint8_t cardType = SD.cardType();
+  if (cardType == CARD_MMC) cardTypeStr = "MMC";
+  else if (cardType == CARD_SD) cardTypeStr = "SDSC";
+  else if (cardType == CARD_SDHC) cardTypeStr = "SDHC";
+  else cardTypeStr = "UNKNOWN";
+
+  display.clearDisplay();
+  // Set cursor inside the frame area
+  display.setCursor(2, 2);
+  display.println("-- SD Kart Bilgisi --");
+  
+  display.setCursor(2, display.getCursorY());
+  display.print("Tip   : "); display.println(cardTypeStr);
+
+  // Display Total Size (GB or MB)
+  display.setCursor(2, display.getCursorY());
+  if (totalBytes >= (1024ULL * 1024 * 1024)) {
+    float totalGB = totalBytes / (1024.0 * 1024.0 * 1024.0);
+    display.print("Boyut : "); display.print(totalGB, 1); display.println(" GB");
+  } else {
+    float totalMB = totalBytes / (1024.0 * 1024.0);
+    display.print("Boyut : "); display.print(totalMB, 2); display.println(" MB");
+  }
+
+  // Display Used Space (GB, MB, or KB)
+  display.setCursor(2, display.getCursorY());
+  display.print("Dolu  : ");
+  if (usedBytes >= (1024ULL * 1024 * 1024)) { // Show in GB
+    float usedGB = usedBytes / (1024.0 * 1024.0 * 1024.0);
+    display.print(usedGB, 2); display.println(" GB");
+  } else if (usedBytes >= (1024 * 1024)) { // Show in MB
+    float usedMB = usedBytes / (1024.0 * 1024.0);
+    display.print(usedMB, 2); display.println(" MB");
+  } else { // Show in KB
+    float usedKB = usedBytes / 1024.0;
+    display.print(usedKB, 1); display.println(" KB");
+  }
+
+  // Display Usage Percentage
+  display.setCursor(2, display.getCursorY());
+  if (totalBytes > 0) {
+    float usage = (float)usedBytes / totalBytes * 100.0;
+    display.print("Doluluk: ");
+    if (usage < 0.1 && usage > 0.0) {
+        display.println("< %0.1");
+    } else {
+        display.print("%");
+        display.println(usage, 1);
+    }
+  }
+}
+
+// Displays a prepared page with a blinking frame for a set duration
+void showPageWithBlinkingFrame(void (*preparePageFunc)(), int duration_ms) {
+  preparePageFunc(); // Prepares the content in the buffer without displaying it
+
+  long pageStartTime = millis();
+  while (millis() - pageStartTime < duration_ms) {
+    // Draw white frame on top of the buffered content and display
+    display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);
+    display.display();
+    delay(250);
+
+    // "Erase" the frame by drawing a black one over it. The text remains.
+    display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_BLACK);
+    display.display();
+    delay(250);
+  }
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(OLED_SDA, OLED_SCL);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);
+  }
+
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  oledPrint("OLED Baslatildi");
+
+  sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+
+  oledPrint("SD Kart\nBaglaniyor...");
+  // FIXED: Changed SD_SCS to the correct SD_CS
+  if (!SD.begin(SD_CS, sdSPI)) {
+    oledPrint("HATA:\nSD Kart\nBaglanamadi!");
+    return;
+  }
+  oledPrint("SD Kart\nBasariyla\nBaglandi.");
+
+  // Perform Speed Tests and store results in global variables
+  performWriteTest();
+  performReadTest();
+
+  // Clean up the test file
+  oledPrint("Test dosyasi\nsiliniyor...");
+  SD.remove(TEST_FILE);
+  
+  oledPrint("Testler Bitti.\nDongu basliyor...");
+}
+
+void loop() {
+  // Show speed stats page with blinking frame for 5 seconds
+  showPageWithBlinkingFrame(prepareSpeedStatsPage, 5000);
+
+  // Show general stats page with blinking frame for 5 seconds
+  showPageWithBlinkingFrame(prepareGeneralStatsPage, 5000);
+}
