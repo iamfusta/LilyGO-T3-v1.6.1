@@ -1,0 +1,113 @@
+/*
+ * Lilygo T3 V1.6.1 SD Card Test Sketch
+ *
+ * This sketch demonstrates how to initialize and use the SD card reader on the
+ * Lilygo T3 V1.6.1 board. The SD card uses the HSPI bus, so a secondary
+ * SPI class instance is required. Serial monitor only version.
+ *
+ * SD Card Pinout for T3 V1.6.1:
+ * - SCK:  GPIO 14
+ * - MISO: GPIO 2
+ * - MOSI: GPIO 15
+ * - CS:   GPIO 13
+ *
+ * The code will:
+ * 1. Initialize Serial communication for debugging.
+ * 2. Initialize the secondary SPI bus (HSPI) for the SD card.
+ * 3. Mount the SD card.
+ * 4. Write a line of text to a file named "/test.txt".
+ * 5. Read the content of "/test.txt" and print it to the Serial Monitor.
+ */
+
+#include <SPI.h>
+#include <SD.h>
+
+// The SD card on the T3 V1.6.1 is on the HSPI bus.
+// We create a new SPIClass instance for HSPI.
+SPIClass sdSPI(HSPI);
+
+// Define the Chip Select (CS) pin for the SD card
+#define SD_CS 13
+
+// Define the pins for the HSPI bus
+#define SD_SCK 14
+#define SD_MISO 2
+#define SD_MOSI 15
+
+void setup() {
+  // Start serial communication for output
+  Serial.begin(115200);
+  while (!Serial); // Wait for serial port to connect. Needed for native USB port only
+
+  Serial.println("\n-- LILYGO T3 V1.6.1 SD Card Test --");
+
+  // Initialize the HSPI bus with the correct pins
+  Serial.println("Initializing HSPI bus for SD card...");
+  sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+
+  // Initialize the SD card.
+  // We need to pass the CS pin and the SPIClass instance.
+  Serial.println("Mounting SD card...");
+  if (!SD.begin(SD_CS, sdSPI)) {
+    Serial.println("Card Mount Failed! Check the following:");
+    Serial.println("- Is the card properly inserted?");
+    Serial.println("- Is the card formatted as FAT32?");
+    Serial.println("- Are the pin definitions correct?");
+    return; // Stop execution if the card can't be mounted
+  }
+  Serial.println("SD card mounted successfully.");
+
+  // Check card type
+  uint8_t cardType = SD.cardType();
+  if (cardType == CARD_NONE) {
+    Serial.println("No SD card attached.");
+    return;
+  }
+
+  Serial.print("SD Card Type: ");
+  if (cardType == CARD_MMC) {
+    Serial.println("MMC");
+  } else if (cardType == CARD_SD) {
+    Serial.println("SDSC");
+  } else if (cardType == CARD_SDHC) {
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
+
+  // --- Writing to a file ---
+  Serial.println("Writing to /test.txt...");
+  // Open the file in write mode. The file will be created if it doesn't exist.
+  // Using a leading slash is important.
+  File file = SD.open("/test.txt", FILE_WRITE);
+  if (file) {
+    file.println("Merhaba, Lilygo T3 V1.6.1!");
+    file.println("SD kart testi basarili.");
+    file.close(); // Close the file to save the data
+    Serial.println("File write successful.");
+  } else {
+    Serial.println("Error opening /test.txt for writing.");
+    return;
+  }
+
+  // --- Reading from the file ---
+  Serial.println("\nReading from /test.txt...");
+  file = SD.open("/test.txt");
+  if (file) {
+    Serial.println("--- File Content ---");
+    while (file.available()) {
+      Serial.write(file.read());
+    }
+    file.close();
+    Serial.println("--------------------");
+    Serial.println("\nFile read successful.");
+  } else {
+    Serial.println("Error opening /test.txt for reading.");
+  }
+
+  Serial.println("\nTest complete.");
+}
+
+void loop() {
+  // Nothing to do here, the test runs once in setup.
+}
