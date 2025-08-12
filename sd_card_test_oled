@@ -1,0 +1,127 @@
+/*
+ * Lilygo T3 V1.6.1 SD Card & OLED Test Sketch
+ *
+ * This sketch demonstrates how to use both the SD card reader and the OLED display
+ * on the Lilygo T3 V1.6.1 board.
+ *
+ * SD Card Pinout for T3 V1.6.1:
+ * - SCK:  GPIO 14
+ * - MISO: GPIO 2
+ * - MOSI: GPIO 15
+ * - CS:   GPIO 13
+ *
+ * OLED Pinout (I2C):
+ * - SDA:  GPIO 21
+ * - SCL:  GPIO 22
+ *
+ * The code will:
+ * 1. Initialize the OLED display.
+ * 2. Initialize the SD card via the HSPI bus.
+ * 3. Display all status messages on the OLED screen.
+ * 4. Write a line of text to "/test.txt" on the SD card.
+ * 5. Read the content of "/test.txt" and display it on the OLED screen.
+ */
+
+#include <SPI.h>
+#include <SD.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Display Settings
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_SDA 21
+#define OLED_SCL 22
+#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+
+// Create an Adafruit OLED display object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// SD Card Settings
+// The SD card on the T3 V1.6.1 is on the HSPI bus.
+SPIClass sdSPI(HSPI);
+
+#define SD_CS 13
+#define SD_SCK 14
+#define SD_MISO 2
+#define SD_MOSI 15
+
+// Helper function to print text to the OLED
+void oledPrint(const String& text) {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println(text);
+  display.display();
+  delay(1000); // Wait a bit so the message can be read
+}
+
+void setup() {
+  // Start serial communication for backup debugging
+  Serial.begin(115200);
+
+  // Initialize I2C for OLED
+  Wire.begin(OLED_SDA, OLED_SCL);
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x64
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;); // Don't proceed, loop forever
+  }
+
+  // Basic display setup
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  oledPrint("OLED Baslatildi\nSD Kart Testi...");
+
+  // Initialize the HSPI bus for the SD card
+  sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+
+  // Initialize the SD card
+  oledPrint("SD Kart\nBaglaniyor...");
+  if (!SD.begin(SD_CS, sdSPI)) {
+    oledPrint("HATA:\nSD Kart\nBaglanamadi!");
+    return; // Stop execution
+  }
+  oledPrint("SD Kart\nBasariyla\nBaglandi.");
+
+  // --- Writing to a file ---
+  oledPrint("Dosyaya\nYaziliyor...");
+  File file = SD.open("/test.txt", FILE_WRITE);
+  if (file) {
+    file.println("Merhaba, Lilygo!");
+    file.println("OLED & SD Testi");
+    file.close();
+    oledPrint("Dosyaya Yazma\nBasarili.");
+  } else {
+    oledPrint("HATA:\nDosya Yazma\nBasarisiz!");
+    return;
+  }
+
+  // --- Reading from the file ---
+  oledPrint("Dosyadan\nOkunuyor...");
+  file = SD.open("/test.txt");
+  if (file) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("--- Dosya Icerigi ---");
+    while (file.available()) {
+      // Read line by line and print to display
+      String line = file.readStringUntil('\n');
+      line.trim(); // Remove newline characters
+      display.println(line);
+    }
+    display.display();
+    file.close();
+    delay(4000); // Show content for a few seconds
+  } else {
+    oledPrint("HATA:\nDosya Okuma\nBasarisiz!");
+  }
+
+  oledPrint("Test Tamamlandi.");
+}
+
+void loop() {
+  // Nothing to do here, the test runs once in setup.
+}
